@@ -28,7 +28,7 @@ const releaseRules = [
 
 const config = {
   // TODO: remove this when we no longer process releases on GitLab CI
-  repositoryUrl: 'https://github.com/saltstack-formulas/kubeadm-formula',
+  repositoryUrl: 'https://github.com/SomeBlackMagic/salt-kubeadm-formula',
   plugins: [
     ['@semantic-release/commit-analyzer', { releaseRules }],
     '@semantic-release/release-notes-generator',
