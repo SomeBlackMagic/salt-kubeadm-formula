@@ -1,44 +1,96 @@
-# -*- coding: utf-8 -*-
-# vim: ft=yaml
 ---
 kubeadm:
-  lookup:
-    master: template-master
-
-  # Using bash package and udev service as an example. This allows us to
-  # test the template formula itself. You should set these parameters to
-  # examples that make sense in the contexto of the formula you're writing.
-  pkg:
-    name: bash
-  service:
-    name: systemd-journald
-  config: /etc/template-formula.conf
-
-  tofs:
-    # The files_switch key serves as a selector for alternative
-    # directories under the formula files directory. See TOFS pattern
-    # doc for more info.
-    # Note: Any value not evaluated by `config.get` will be used literally.
-    # This can be used to set custom paths, as many levels deep as required.
-    files_switch:
-      - any/path/can/be/used/here
-      - id
-      - roles
-      - osfinger
-      - os
-      - os_family
-
-    # All aspects of path/file resolution are customisable using the options below.
-    # This is unnecessary in most cases; there are sensible defaults.
-    # Default path: salt://< path_prefix >/< dirs.files >/< dirs.default >
-    # I.e.: salt://kubeadm/files/default
-    # path_prefix: template_alt
-    # dirs:
-    #   files: files_alt
-    #   default: default_alt
-    # The entries under `source_files` are prepended to the default source files
-    # given for the state
-    source_files:
-      kubeadm-config-file-file-managed:
-        - 'example_alt.tmpl'
-        - 'example_alt.tmpl.jinja'
+  version: v1.31.4
+  arch: amd64
+  download:
+    base_url: https://dl.k8s.io/release
+  paths:
+    install_dir: /opt/kubernetes
+    bin_dir: /usr/local/bin
+    patches_dir: /etc/kubernetes/patches
+    config_dir: /etc/kubernetes/kubeadm
+    backup_dir: /etc/kubernetes/salt-backup
+    backup_keep: 5
+  cluster:
+    clusterName: production
+    controlPlaneEndpoint: k8s-api.example.local:6443
+    networking:
+      serviceSubnet: 10.96.0.0/12
+      podSubnet: 10.244.0.0/16
+      dnsDomain: cluster.local
+    apiServer:
+      certSANs:
+        - k8s-api.example.local
+      extraArgs: {}
+    controllerManager:
+      extraArgs: {}
+    scheduler:
+      extraArgs: {}
+    etcd:
+      local:
+        extraArgs: {}
+  kubelet:
+    cgroupDriver: systemd
+    clusterDNS:
+      - 10.96.0.10
+    clusterDomain: cluster.local
+  certs:
+    auto_renew: false
+    threshold_days: 30
+  addons:
+    kube_proxy:
+      managed_by: kubeadm
+      config:
+        mode: ipvs
+    coredns:
+      managed_by: kubeadm
+      corefile: |
+        .:53 {
+            errors
+            health
+            ready
+            kubernetes cluster.local in-addr.arpa ip6.arpa
+            forward . /etc/resolv.conf
+            cache 30
+            reload
+        }
+  roles:
+    control-plane:
+      taints:
+        node-role.kubernetes.io/control-plane:
+          effect: NoSchedule
+      patches: {}
+    worker:
+      patches:
+        kubeletconfiguration:
+          maxPods: 200
+  node:
+    role: control-plane
+    advertise_address: 10.0.0.11
+    flags:
+      node-ip: 10.0.0.11
+    labels:
+      topology.example.io/rack: r1
+    taints: {}
+    patches:
+      kube-apiserver:
+        spec:
+          containers:
+            kube-apiserver:
+              resources:
+                requests:
+                  cpu: '1'
+                  memory: 2Gi
+              env:
+                GOMAXPROCS:
+                  value: '4'
+  orchestrate:
+    transport: minion
+    nodegroups:
+      masters: k8s-masters
+      workers: k8s-workers
+    source_ip: null
+    decommissioned: []
+    health:
+      retries: 30
+      interval: 10

@@ -1,0 +1,105 @@
+---
+kubeadm:
+  version: ''
+  arch: amd64
+  download:
+    base_url: https://dl.k8s.io/release
+  paths:
+    install_dir: /opt/kubernetes
+    bin_dir: /usr/local/bin
+    patches_dir: /etc/kubernetes/patches
+    config_dir: /etc/kubernetes/kubeadm
+    backup_dir: /etc/kubernetes/salt-backup
+    backup_keep: 5
+  cluster:
+    clusterName: ''
+    controlPlaneEndpoint: ''
+    networking:
+      serviceSubnet: 10.96.0.0/12
+      podSubnet: 10.244.0.0/16
+      dnsDomain: cluster.local
+    apiServer:
+      certSANs: []
+      extraArgs: {}
+    controllerManager:
+      extraArgs: {}
+    scheduler:
+      extraArgs: {}
+    etcd:
+      local:
+        extraArgs: {}
+  kubelet:
+    cgroupDriver: systemd
+    clusterDNS: []
+    clusterDomain: cluster.local
+  certs:
+    auto_renew: false
+    threshold_days: 30
+  addons:
+    kube_proxy:
+      managed_by: kubeadm
+    coredns:
+      managed_by: kubeadm
+  node:
+    role: ''
+    advertise_address: ''
+    flags: {}
+    labels: {}
+    taints: {}
+    patches: {}
+  roles:
+    control-plane:
+      taints: {}
+      patches: {}
+    worker:
+      patches: {}
+  orchestrate:
+    transport: minion
+    nodegroups:
+      masters: ''
+      workers: ''
+    source_ip: null
+    decommissioned: []
+    health:
+      retries: 30
+      interval: 10
+
+named_list_keys:
+  - containers
+  - initContainers
+  - env
+  - volumes
+  - volumeMounts
+  - ports
+
+denylist:
+  kubelet:
+    - clusterDNS
+    - clusterDomain
+    - cgroupDriver
+    - rootDir
+    - staticPodPath
+  cluster:
+    - networking.serviceSubnet
+    - networking.podSubnet
+    - controlPlaneEndpoint
+    - apiServer.extraArgs.oidc-issuer-url
+    - apiServer.extraArgs.oidc-client-id
+    - apiServer.extraArgs.service-account-issuer
+    - apiServer.extraArgs.encryption-provider-config
+    - apiServer.extraArgs.audit-policy-file
+    - apiServer.extraArgs.audit-log-path
+    - apiServer.extraArgs.enable-admission-plugins
+    - apiServer.extraArgs.disable-admission-plugins
+    - apiServer.extraArgs.authorization-mode
+    - apiServer.extraArgs.feature-gates
+    - controllerManager.extraArgs.feature-gates
+    - scheduler.extraArgs.feature-gates
+  etcd:
+    - local.extraArgs.name
+    - local.extraArgs.initial-cluster
+    - local.extraArgs.initial-cluster-state
+    - local.extraArgs.initial-advertise-peer-urls
+    - local.extraArgs.listen-peer-urls
+    - local.extraArgs.heartbeat-interval
+    - local.extraArgs.election-timeout
