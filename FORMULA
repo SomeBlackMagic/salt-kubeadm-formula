@@ -4,8 +4,8 @@ os_family: Debian, RedHat, Suse, Gentoo, Arch, Alpine, FreeBSD, OpenBSD, Solaris
 version: 1.0.0
 release: 1
 minimum_version: 2019.2
-summary: kubeadm formula
-description: Formula to use as a template for other formulas
+summary: Salt formula for kubeadm-managed Kubernetes nodes
+description: Install versioned Kubernetes binaries and render kubeadm node configuration
 top_level_dir: kubeadm
 maintainers:
   - name: SomeBlackMagic

@@ -1,0 +1,26 @@
+{%- from 'kubeadm/map.jinja' import kubeadm with context %}
+{%- set minor = kubeadm.version.lstrip('v').split('.')[1] | int %}
+{%- set api_version = 'v1beta4' if minor >= 31 else 'v1beta3' %}
+{%- set taints = [] %}
+{%- for key, value in kubeadm.node.taints | dictsort %}
+  {%- set taint = {'key': key} %}
+  {%- do taint.update(value) %}
+  {%- do taints.append(taint) %}
+{%- endfor %}
+{%- set init_config = {
+      'apiVersion': 'kubeadm.k8s.io/' ~ api_version,
+      'kind': 'InitConfiguration',
+      'nodeRegistration': {'taints': taints}
+    } %}
+{%- if kubeadm.node.advertise_address %}
+  {%- do init_config.update({
+        'localAPIEndpoint': {
+          'advertiseAddress': kubeadm.node.advertise_address
+        }
+      }) %}
+{%- endif %}
+{{ init_config | yaml(False) }}
+---
+{% include 'kubeadm/files/cluster.yaml.jinja' %}
+---
+{% include 'kubeadm/files/kubelet.yaml.jinja' %}

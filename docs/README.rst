@@ -18,8 +18,10 @@ kubeadm-formula
    :scale: 100%
    :target: https://github.com/pre-commit/pre-commit
 
-A SaltStack formula that is empty. It has dummy content to help with a quick
-start on a new formula and it serves as a style guide.
+A Salt formula for preparing Kubernetes nodes managed with ``kubeadm``.
+The node-install phase downloads checksum-verified, versioned binaries,
+installs the kubelet systemd unit without starting it, and renders kubeadm
+configuration and strategic-merge patches from pillar data.
 
 .. contents:: **Table of Contents**
    :depth: 1
@@ -68,7 +70,15 @@ now ``pre-commit`` will run automatically on each ``git commit``. ::
 Special notes
 -------------
 
-None
+The main state deliberately enables kubelet but does not start it. Cluster
+bootstrap and node joins are handled by later orchestration phases.
+
+Existing binary symlinks are not switched by ``kubeadm.binaries``. A new
+version can therefore be staged safely; activation belongs to the upgrade
+workflow. The two most recent installed version directories are retained.
+
+``join.yaml`` is rendered only when a runtime join token exists. Its contents
+are hidden from Salt change output.
 
 Available states
 ----------------
@@ -79,77 +89,29 @@ Available states
 ``kubeadm``
 ^^^^^^^^^^^
 
-*Meta-state (This is a state that includes other states)*.
+Meta-state that includes ``kubeadm.binaries``, ``kubeadm.kubelet``, and
+``kubeadm.config``.
 
-This installs the kubeadm package,
-manages the kubeadm configuration file and then
-starts the associated kubeadm service.
+``kubeadm.binaries``
+^^^^^^^^^^^^^^^^^^^^
 
-``kubeadm.package``
+Downloads ``kubeadm``, ``kubelet``, and ``kubectl`` into a versioned
+directory and verifies each binary with the upstream SHA-256 file. Initial
+symlinks are created atomically; existing symlinks are left unchanged.
+
+``kubeadm.kubelet``
 ^^^^^^^^^^^^^^^^^^^
 
-This state will install the kubeadm package only.
+Manages the kubelet systemd unit, drop-in, and ``/etc/default/kubelet``.
+The service is enabled but is never started by this state.
 
 ``kubeadm.config``
 ^^^^^^^^^^^^^^^^^^
 
-This state will configure the kubeadm service and has a dependency on ``kubeadm.install``
-via include list.
-
-``kubeadm.service``
-^^^^^^^^^^^^^^^^^^^
-
-This state will start the kubeadm service and has a dependency on ``kubeadm.config``
-via include list.
-
-``kubeadm.clean``
-^^^^^^^^^^^^^^^^^
-
-*Meta-state (This is a state that includes other states)*.
-
-this state will undo everything performed in the ``kubeadm`` meta-state in reverse order, i.e.
-stops the service,
-removes the configuration file and
-then uninstalls the package.
-
-``kubeadm.service.clean``
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This state will stop the kubeadm service and disable it at boot time.
-
-``kubeadm.config.clean``
-^^^^^^^^^^^^^^^^^^^^^^^^
-
-This state will remove the configuration of the kubeadm service and has a
-dependency on ``kubeadm.service.clean`` via include list.
-
-``kubeadm.package.clean``
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This state will remove the kubeadm package and has a depency on
-``kubeadm.config.clean`` via include list.
-
-``kubeadm.subcomponent``
-^^^^^^^^^^^^^^^^^^^^^^^^
-
-*Meta-state (This is a state that includes other states)*.
-
-This state installs a subcomponent configuration file before
-configuring and starting the kubeadm service.
-
-``kubeadm.subcomponent.config``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This state will configure the kubeadm subcomponent and has a
-dependency on ``kubeadm.config`` via include list.
-
-``kubeadm.subcomponent.config.clean``
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-This state will remove the configuration of the kubeadm subcomponent
-and reload the kubeadm service by a dependency on
-``kubeadm.service.running`` via include list and ``watch_in``
-requisite.
+Renders version-appropriate kubeadm API documents under
+``/etc/kubernetes/kubeadm`` and manages the clean patch directory under
+``/etc/kubernetes/patches``. See ``pillar.example`` for the complete data
+shape and merge layers.
 
 Testing
 -------
@@ -168,8 +130,8 @@ Requirements
    $ bundle install
    $ bin/kitchen test [platform]
 
-Where ``[platform]`` is the platform name defined in ``kitchen.yml``,
-e.g. ``debian-9-2019-2-py3``.
+Where ``[platform]`` is a platform name defined in ``kitchen.yml``, for
+example ``debian-13-3008-5``.
 
 ``bin/kitchen converge``
 ^^^^^^^^^^^^^^^^^^^^^^^^

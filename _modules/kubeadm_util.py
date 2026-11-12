@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import re
 from collections.abc import Mapping
 
 
@@ -93,3 +94,46 @@ def check_denylist(layer, denylist):
             if value is not missing:
                 violations.append({"path": ".".join(parts), "value": value})
     return violations
+
+
+def stale_version_dirs(paths, current_version, keep=2):
+    """Return old version directories, always preserving the requested version."""
+    if keep < 1:
+        raise ValueError("keep must be at least 1")
+
+    version_pattern = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$")
+
+    def version_key(version):
+        match = version_pattern.match(version)
+        if match is None:
+            return None
+        return tuple(int(part) for part in match.groups())
+
+    candidates = {}
+    for path in paths:
+        name = str(path).rstrip("/").rsplit("/", 1)[-1]
+        key = version_key(name)
+        if key is not None:
+            candidates[name] = (key, str(path).rstrip("/"))
+
+    current_key = version_key(current_version)
+    if current_key is None:
+        raise ValueError(f"invalid Kubernetes version: {current_version}")
+    candidates.setdefault(current_version, (current_key, None))
+
+    retained = {current_version}
+    other_versions = sorted(
+        (
+            (name, value)
+            for name, value in candidates.items()
+            if name != current_version
+        ),
+        key=lambda item: item[1][0],
+        reverse=True,
+    )
+    retained.update(name for name, _value in other_versions[: keep - 1])
+    return [
+        path
+        for name, (_key, path) in candidates.items()
+        if path is not None and name not in retained
+    ]

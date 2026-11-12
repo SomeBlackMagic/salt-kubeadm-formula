@@ -1,0 +1,39 @@
+{%- from 'kubeadm/map.jinja' import kubeadm with context %}
+{%- set minor = kubeadm.version.lstrip('v').split('.')[1] | int %}
+{%- set api_version = 'v1beta4' if minor >= 31 else 'v1beta3' %}
+{%- set config = salt['kubeadm_util.merge_layers']({}, kubeadm.cluster, {}, {}) %}
+{%- do config.update({
+      'apiVersion': 'kubeadm.k8s.io/' ~ api_version,
+      'kind': 'ClusterConfiguration'
+    }) %}
+{%- set api_server = config.get('apiServer', {}) %}
+{%- do api_server.update({
+      'extraArgs': salt['kubeadm_util.extra_args'](
+        api_server.get('extraArgs', {}), api_version
+      )
+    }) %}
+{%- do config.update({'apiServer': api_server}) %}
+{%- set controller = config.get('controllerManager', {}) %}
+{%- do controller.update({
+      'extraArgs': salt['kubeadm_util.extra_args'](
+        controller.get('extraArgs', {}), api_version
+      )
+    }) %}
+{%- do config.update({'controllerManager': controller}) %}
+{%- set scheduler = config.get('scheduler', {}) %}
+{%- do scheduler.update({
+      'extraArgs': salt['kubeadm_util.extra_args'](
+        scheduler.get('extraArgs', {}), api_version
+      )
+    }) %}
+{%- do config.update({'scheduler': scheduler}) %}
+{%- set etcd = config.get('etcd', {}) %}
+{%- set local_etcd = etcd.get('local', {}) %}
+{%- do local_etcd.update({
+      'extraArgs': salt['kubeadm_util.extra_args'](
+        local_etcd.get('extraArgs', {}), api_version
+      )
+    }) %}
+{%- do etcd.update({'local': local_etcd}) %}
+{%- do config.update({'etcd': etcd}) %}
+{{ config | yaml(False) }}

@@ -1,0 +1,41 @@
+{%- from 'kubeadm/map.jinja' import kubeadm with context %}
+{%- set minor = kubeadm.version.lstrip('v').split('.')[1] | int %}
+{%- set api_version = 'v1beta4' if minor >= 31 else 'v1beta3' %}
+{%- set join = kubeadm.join %}
+{%- set ca_hashes = join.get('ca_cert_hashes', []) %}
+{%- if not ca_hashes and join.get('ca_cert_hash') %}
+  {%- set ca_hashes = [join.ca_cert_hash] %}
+{%- endif %}
+{%- set taints = [] %}
+{%- for key, value in kubeadm.node.taints | dictsort %}
+  {%- set taint = {'key': key} %}
+  {%- do taint.update(value) %}
+  {%- do taints.append(taint) %}
+{%- endfor %}
+{%- set config = {
+      'apiVersion': 'kubeadm.k8s.io/' ~ api_version,
+      'kind': 'JoinConfiguration',
+      'discovery': {
+        'bootstrapToken': {
+          'apiServerEndpoint': kubeadm.cluster.controlPlaneEndpoint,
+          'token': join.token,
+          'caCertHashes': ca_hashes
+        }
+      },
+      'nodeRegistration': {'taints': taints}
+    } %}
+{%- if kubeadm.node.role == 'control-plane' %}
+  {%- set control_plane = {} %}
+  {%- if kubeadm.node.advertise_address %}
+    {%- do control_plane.update({
+          'localAPIEndpoint': {
+            'advertiseAddress': kubeadm.node.advertise_address
+          }
+        }) %}
+  {%- endif %}
+  {%- if join.get('certificate_key') %}
+    {%- do control_plane.update({'certificateKey': join.certificate_key}) %}
+  {%- endif %}
+  {%- do config.update({'controlPlane': control_plane}) %}
+{%- endif %}
+{{ config | yaml(False) }}

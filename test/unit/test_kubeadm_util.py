@@ -183,3 +183,27 @@ class TestCheckDenylist:
             {"kubelet": {"clusterDNS": None}}, {"kubelet": ["clusterDNS"]}
         )
         assert result == [{"path": "kubelet.clusterDNS", "value": None}]
+
+
+class TestStaleVersionDirs:
+    def test_keeps_current_and_newest_other_version(self, kubeadm_util):
+        paths = [
+            "/opt/kubernetes/v1.24.0",
+            "/opt/kubernetes/v1.25.16",
+            "/opt/kubernetes/v1.26.0",
+        ]
+        result = kubeadm_util.stale_version_dirs(paths, "v1.25.16")
+        assert result == ["/opt/kubernetes/v1.24.0"]
+
+    def test_current_need_not_exist_yet(self, kubeadm_util):
+        paths = ["/opt/kubernetes/v1.24.0", "/opt/kubernetes/v1.25.16"]
+        result = kubeadm_util.stale_version_dirs(paths, "v1.26.0")
+        assert result == ["/opt/kubernetes/v1.24.0"]
+
+    def test_ignores_non_semver_directories(self, kubeadm_util):
+        paths = ["/opt/kubernetes/cache", "/opt/kubernetes/v1.25.16"]
+        assert kubeadm_util.stale_version_dirs(paths, "v1.25.16") == []
+
+    def test_rejects_invalid_current_version(self, kubeadm_util):
+        with pytest.raises(ValueError, match="invalid Kubernetes version"):
+            kubeadm_util.stale_version_dirs([], "latest")
