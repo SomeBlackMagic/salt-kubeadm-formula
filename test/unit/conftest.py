@@ -3,6 +3,7 @@
 import importlib.util
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import jinja2
 import pytest
@@ -11,6 +12,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "_modules" / "kubeadm_util.py"
+STATE_MODULE_PATH = ROOT / "_states" / "kubeadm.py"
 
 
 def _load_utility():
@@ -28,6 +30,30 @@ def _load_utility():
 def kubeadm_util():
     """Load the execution module without requiring the Salt loader."""
     return _load_utility()
+
+
+@pytest.fixture
+def state_mod():
+    """Load the custom kubeadm state with isolated Salt loader globals."""
+    if not STATE_MODULE_PATH.is_file():
+        pytest.fail(f"Required state module does not exist yet: {STATE_MODULE_PATH}")
+    spec = importlib.util.spec_from_file_location(
+        "kubeadm_state", STATE_MODULE_PATH
+    )
+    if spec is None or spec.loader is None:
+        pytest.fail(f"Unable to load module spec from: {STATE_MODULE_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.__opts__ = {"test": False}
+    module.__salt__ = {
+        "cmd.run": MagicMock(),
+        "cmd.run_all": MagicMock(),
+        "file.file_exists": MagicMock(return_value=False),
+        "file.read": MagicMock(),
+        "http.query": MagicMock(),
+        "service.status": MagicMock(),
+    }
+    return module
 
 
 @pytest.fixture
