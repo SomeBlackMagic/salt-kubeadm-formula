@@ -34,37 +34,10 @@ transport:
   max_wait_until_ready: 60
 
 platforms:
-  ## SALT `3009 master`
-  - name: debian-12-master
-    driver:
-      image: saltimages/salt-master-py3:debian-12
-      run_command: /lib/systemd/systemd
-
-  # TODO image not exist
-  #- name: debian-13-master
-  #  driver:
-  #    image: saltimages/salt-master-py3:debian-13
-  #    run_command: /lib/systemd/systemd
-
-  - name: ubuntu-2404-master
-    driver:
-      image: saltimages/salt-master-py3:ubuntu-24.04
-      run_command: /lib/systemd/systemd
-
   ## SALT `3008.5`
   - name: debian-13-3008-5
     driver:
       image: saltimages/salt-3008.5-py3:debian-13
-      run_command: /lib/systemd/systemd
-
-  - name: debian-12-3008-5
-    driver:
-      image: saltimages/salt-3008.5-py3:debian-12
-      run_command: /lib/systemd/systemd
-
-  - name: ubuntu-2404-3008-5
-    driver:
-      image: saltimages/salt-3008.5-py3:ubuntu-24.04
       run_command: /lib/systemd/systemd
 
 

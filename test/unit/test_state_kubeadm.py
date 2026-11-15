@@ -143,3 +143,71 @@ class TestKubeadmInitialized:
             python_shell=False,
             redirect_stderr=False,
         )
+
+
+class TestKubeadmHealthy:
+    def test_all_checks_pass(self, state_mod):
+        state_mod.__salt__["http.query"].return_value = {
+            "status": 200,
+            "body": "ok",
+        }
+        state_mod.__salt__["service.status"].return_value = True
+
+        result = state_mod.healthy(
+            name="health",
+            checks=["readyz", "etcd", "kubelet"],
+            interval=0,
+        )
+
+        assert result["result"] is True
+        assert state_mod.__salt__["http.query"].call_count == 2
+        state_mod.__salt__["service.status"].assert_called_once_with("kubelet")
+        state_mod.__salt__["cmd.run"].assert_not_called()
+        state_mod.__salt__["cmd.run_all"].assert_not_called()
+
+    def test_readyz_fails(self, state_mod):
+        state_mod.__salt__["http.query"].return_value = {
+            "status": 500,
+            "body": "not ready",
+        }
+
+        result = state_mod.healthy(
+            name="health",
+            checks=["readyz"],
+            retries=3,
+            interval=0,
+        )
+
+        assert result["result"] is False
+        assert state_mod.__salt__["http.query"].call_count == 3
+
+    def test_test_mode_single_check(self, state_mod):
+        state_mod.__opts__["test"] = True
+        state_mod.__salt__["http.query"].return_value = {
+            "status": 500,
+            "body": "not ready",
+        }
+
+        result = state_mod.healthy(
+            name="health",
+            checks=["readyz"],
+            retries=30,
+            interval=0,
+        )
+
+        assert result["result"] is None
+        assert state_mod.__salt__["http.query"].call_count == 1
+
+    def test_kubelet_check_uses_service_status(self, state_mod):
+        state_mod.__salt__["service.status"].return_value = True
+
+        result = state_mod.healthy(
+            name="health",
+            checks=["kubelet"],
+            interval=0,
+        )
+
+        assert result["result"] is True
+        state_mod.__salt__["service.status"].assert_called_once_with("kubelet")
+        state_mod.__salt__["cmd.run"].assert_not_called()
+        state_mod.__salt__["cmd.run_all"].assert_not_called()

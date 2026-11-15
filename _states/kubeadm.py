@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 
 __virtualname__ = "kubeadm"
 
@@ -100,3 +102,64 @@ def initialized(
         result.get("stdout") or "Kubernetes control plane initialized",
         {"initialized": "/etc/kubernetes/admin.conf"},
     )
+
+
+def _http_ok(url):
+    try:
+        response = __salt__["http.query"](
+            url,
+            status=True,
+            text=True,
+            decode=True,
+            verify_ssl=False,
+        )
+    except Exception:  # pylint: disable=broad-except
+        return False
+
+    try:
+        return int(response.get("status", 0)) == 200
+    except (TypeError, ValueError):
+        return False
+
+
+def _check(check):
+    if check == "readyz":
+        return _http_ok("https://127.0.0.1:6443/readyz")
+    if check == "etcd":
+        return _http_ok("http://127.0.0.1:2381/health")
+    if check == "kubelet":
+        return bool(__salt__["service.status"]("kubelet"))
+    raise ValueError(f"Unknown kubeadm health check: {check}")
+
+
+def healthy(name, checks=None, retries=30, interval=10):
+    """Check local control-plane health, retrying only in apply mode."""
+    checks = checks or ["readyz", "etcd", "kubelet"]
+    attempts = 1 if __opts__.get("test") else max(1, int(retries))
+    failed = list(checks)
+
+    for attempt in range(attempts):
+        failed = []
+        for check in checks:
+            try:
+                passed = _check(check)
+            except (KeyError, ValueError):
+                passed = False
+            if not passed:
+                failed.append(check)
+
+        if not failed:
+            break
+        if attempt + 1 < attempts:
+            time.sleep(max(0, float(interval)))
+
+    if __opts__.get("test"):
+        status = "healthy" if not failed else f"unhealthy: {', '.join(failed)}"
+        return _ret(name, None, f"Current kubeadm health is {status}")
+    if failed:
+        return _ret(
+            name,
+            False,
+            f"Health checks failed after {attempts} attempts: {', '.join(failed)}",
+        )
+    return _ret(name, True, "All requested kubeadm health checks passed")

@@ -51,6 +51,8 @@ def state_mod():
         "cmd.which": MagicMock(return_value=None),
         "file.file_exists": MagicMock(return_value=False),
         "file.read": MagicMock(),
+        "http.query": MagicMock(),
+        "service.status": MagicMock(),
     }
     return module
 
