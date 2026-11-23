@@ -4,6 +4,8 @@
 kubeadm:
   version: v1.25.16
   arch: amd64
+  download:
+    base_url: salt://cache/k8s
   cluster:
     clusterName: kitchen
     controlPlaneEndpoint: k8s-api.test:6443

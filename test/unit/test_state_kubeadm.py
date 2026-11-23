@@ -1,6 +1,77 @@
 """Behavioral tests for the Phase 2 custom kubeadm states."""
 
 
+class TestKubeadmPreflight:
+    def test_runs_preflight_and_pulls_images(self, state_mod):
+        state_mod.__salt__["cmd.run_all"].side_effect = [
+            {"retcode": 0, "stdout": "preflight ok", "stderr": ""},
+            {"retcode": 0, "stdout": "images pulled", "stderr": ""},
+        ]
+
+        result = state_mod.preflight(
+            name="preflight",
+            config="/etc/kubernetes/kubeadm/init.yaml",
+            pull_images=True,
+        )
+
+        assert result["result"] is True
+        assert result["changes"]["completed"] == [
+            "kubeadm init phase preflight --config "
+            "/etc/kubernetes/kubeadm/init.yaml",
+            "kubeadm config images pull --config "
+            "/etc/kubernetes/kubeadm/init.yaml",
+        ]
+        assert state_mod.__salt__["cmd.run_all"].call_count == 2
+
+    def test_preflight_failure_does_not_pull_images(self, state_mod):
+        state_mod.__salt__["cmd.run_all"].return_value = {
+            "retcode": 1,
+            "stdout": "",
+            "stderr": "preflight failed",
+        }
+
+        result = state_mod.preflight(
+            name="preflight",
+            config="/etc/kubernetes/kubeadm/init.yaml",
+            pull_images=True,
+        )
+
+        assert result["result"] is False
+        assert "preflight failed" in result["comment"]
+        assert state_mod.__salt__["cmd.run_all"].call_count == 1
+
+    def test_ignored_errors_are_explicit(self, state_mod):
+        state_mod.__salt__["cmd.run_all"].return_value = {
+            "retcode": 0,
+            "stdout": "preflight ok",
+            "stderr": "",
+        }
+
+        state_mod.preflight(
+            name="preflight",
+            config="/etc/kubernetes/kubeadm/init.yaml",
+            pull_images=False,
+            ignore_preflight_errors=["SystemVerification"],
+        )
+
+        command = state_mod.__salt__["cmd.run_all"].call_args.args[0]
+        assert "--ignore-preflight-errors=SystemVerification" in command
+
+    def test_test_mode_is_non_mutating(self, state_mod):
+        state_mod.__opts__["test"] = True
+
+        result = state_mod.preflight(
+            name="preflight",
+            config="/etc/kubernetes/kubeadm/init.yaml",
+            pull_images=True,
+        )
+
+        assert result["result"] is None
+        assert "would" in result["comment"].lower()
+        state_mod.__salt__["cmd.run"].assert_not_called()
+        state_mod.__salt__["cmd.run_all"].assert_not_called()
+
+
 class TestKubeadmInitialized:
     def test_already_initialized_no_changes(self, state_mod):
         state_mod.__salt__["file.file_exists"].return_value = True

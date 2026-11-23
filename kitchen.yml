@@ -6,6 +6,7 @@ driver:
   name: docker
   use_sudo: false
   privileged: true
+  cgroupns_mode: private
   run_command: /usr/lib/systemd/systemd
   provision_command:
     # Workaround for RHEL-based images: SSSD is configured (via authselect) but
@@ -28,17 +29,34 @@ provisioner:
     - .git
   pillars_from_directories:
     - test/salt/pillar
+  cache_commands:
+    # Download k8s binaries to a persistent host-side cache (skips if present).
+    - >-
+      mkdir -p .kitchen/cache/k8s/v1.25.16/bin/linux/amd64 &&
+      cd .kitchen/cache/k8s/v1.25.16/bin/linux/amd64 &&
+      for f in kubeadm kubelet kubectl; do
+        test -f "$f" || curl -fsSL -o "$f" "https://dl.k8s.io/release/v1.25.16/bin/linux/amd64/$f";
+        test -f "$f.sha256" || curl -fsSL -o "$f.sha256" "https://dl.k8s.io/release/v1.25.16/bin/linux/amd64/$f.sha256";
+      done
+    # Copy cached binaries into the sandbox so they are available as salt:// files.
+    - >-
+      mkdir -p %{sandbox_path}/srv/salt/cache/k8s/v1.25.16/bin/linux/amd64 &&
+      cp .kitchen/cache/k8s/v1.25.16/bin/linux/amd64/*
+      %{sandbox_path}/srv/salt/cache/k8s/v1.25.16/bin/linux/amd64/
 
 transport:
-  # Avoid lengthy waits when a container does not launch correctly
-  max_wait_until_ready: 60
+  name: docker
 
 platforms:
   ## SALT `3008.5`
   - name: debian-13-3008-5
     driver:
-      image: saltimages/salt-3008.5-py3:debian-13
+      dockerfile: test/docker/bootstrap/Dockerfile
+      build_context: true
       run_command: /lib/systemd/systemd
+      volumes:
+        # Persist containerd image cache between kitchen runs.
+        - .kitchen/cache/containerd:/var/lib/containerd
 
 
 verifier:
@@ -62,3 +80,24 @@ suites:
     verifier:
       inspec_tests:
         - path: test/integration/default
+
+#  - name: bootstrap
+#    provisioner:
+#      # Copy the repository as a file root so master-side orch/ and _runners/
+#      # are available in addition to the node formula.
+#      formula: null
+#      is_file_root: true
+#      salt_minion_extra_config:
+#        file_roots:
+#          base:
+#            - /tmp/kitchen/srv/salt
+#            - /tmp/kitchen/srv/salt/test/fixtures/formulas
+#      pillars_from_directories:
+#        - test/salt/pillar/bootstrap
+#      state_top:
+#        base:
+#          '*':
+#            - test.fixtures.states.bootstrap
+#    verifier:
+#      inspec_tests:
+#        - path: test/integration/bootstrap

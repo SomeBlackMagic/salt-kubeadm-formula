@@ -1,0 +1,6 @@
+---
+name: kubeadm-bootstrap
+title: Persistent kubeadm bootstrap acceptance environment
+version: 1.0.0
+supports:
+  - platform-family: linux

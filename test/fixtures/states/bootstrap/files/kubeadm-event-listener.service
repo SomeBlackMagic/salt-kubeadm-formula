@@ -1,0 +1,11 @@
+[Unit]
+Description=Capture the kubeadm bootstrap completion event
+After=salt-master.service
+
+[Service]
+Type=oneshot
+ExecStartPre=/usr/bin/truncate -s 0 /tmp/kubeadm-bootstrap-event.log
+ExecStart=/usr/local/bin/salt-run state.event tagmatch=kubeadm/bootstrap/done/* count=1
+StandardOutput=append:/tmp/kubeadm-bootstrap-event.log
+StandardError=append:/tmp/kubeadm-bootstrap-event.log
+TimeoutStartSec=300
