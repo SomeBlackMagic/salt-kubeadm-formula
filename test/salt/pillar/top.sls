@@ -4,6 +4,12 @@
 base:
   '*':
     - default
+  'master-1':
+    - bootstrap.default
+  '*_master':
+    - bootstrap.default
+  'buildkitsandbox_master':
+    - bootstrap.default
   'G@os_family:Gentoo':
     - gentoo
   'os:*':

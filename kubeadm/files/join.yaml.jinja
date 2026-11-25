@@ -1,4 +1,3 @@
-{%- from 'kubeadm/map.jinja' import kubeadm with context %}
 {%- set minor = kubeadm.version.lstrip('v').split('.')[1] | int %}
 {%- set api_version = 'v1beta4' if minor >= 31 else 'v1beta3' %}
 {%- set join = kubeadm.join %}

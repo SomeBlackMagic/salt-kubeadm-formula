@@ -91,3 +91,15 @@ class TestConfigSLS:
         states = render_sls("kubeadm/config", minimal_pillar())
         assert all(state["fun"] != "cmd.run" for state in states)
 
+    def test_templates_receive_map_as_explicit_context(
+        self, render_sls, minimal_pillar
+    ):
+        states = render_sls("kubeadm/config", minimal_pillar())
+        configs = [
+            state
+            for state in states
+            if state["fun"] == "file.managed" and state.get("template") == "jinja"
+        ]
+        assert configs
+        assert all("kubeadm" in state["context"] for state in configs)
+

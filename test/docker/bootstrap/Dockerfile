@@ -1,6 +1,5 @@
-# Pre-baked image for the bootstrap Kitchen suite.
-# Installs containerd via the same Salt state used in the formula tests,
-# so that Kitchen converge does not have to repeat it on every run.
+# Systemd-capable image for the bootstrap Kitchen suite. The external
+# containerd formula is installed by kitchen-salt as a suite dependency.
 FROM ghcr.io/someblackmagic/salt-docker-images/kitchen-debian-13:3008.5
 
 # Prevent getty from spawning on the host's TTYs in privileged mode.
@@ -18,14 +17,10 @@ RUN useradd -d /home/kitchen -m -s /bin/bash -p '*' kitchen \
  && echo "kitchen ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/kitchen \
  && echo "Defaults !requiretty" >> /etc/sudoers.d/kitchen
 
-COPY test/fixtures/formulas/containerd /srv/salt/test/fixtures/formulas/containerd
-RUN ln -s /srv/salt/test/fixtures/formulas/containerd /srv/salt/containerd
-
-RUN salt-call --local --file-root=/srv/salt \
-      state.sls_id bootstrap_containerd_packages containerd \
-      --log-level=info \
- && salt-call --local --file-root=/srv/salt \
-      state.sls_id bootstrap_containerd_config containerd \
-      --log-level=info \
- && systemctl enable containerd \
- && rm -rf /srv/salt /var/cache/salt
+# The production node-prerequisite formula owns these OS tools. The minimal
+# Kitchen base image supplies them explicitly; containerd/crictl still come
+# exclusively from salt-containerd-formula during orchestration.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      conntrack iproute2 iptables socat \
+ && rm -rf /var/lib/apt/lists/*

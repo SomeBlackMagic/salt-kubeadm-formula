@@ -1,0 +1,83 @@
+---
+# Manual orchestration testing environment.
+# Usage:
+#   docker compose up -d
+#   docker compose exec master bash
+#   salt-key -A -y
+#   salt '*' test.ping
+#   salt-run state.orchestrate orch.kubeadm.bootstrap saltenv=base pillarenv=base
+#
+# Teardown:
+#   docker compose down -v
+
+x-common: &common
+  image: ghcr.io/someblackmagic/salt-docker-images/kitchen-debian-13:3008.5
+  privileged: true
+  cgroupns: private
+  tmpfs:
+    - /run
+    - /run/lock
+  volumes:
+    # Formula sources (read-only).
+    - ./kubeadm:/srv/salt/kubeadm:ro
+    - ./orch:/srv/salt/orch:ro
+    - ./_runners:/srv/salt/_runners:ro
+    - ./_states:/srv/salt/_states:ro
+    - ./_modules:/srv/salt/_modules:ro
+    - ./test/salt/pillar:/srv/pillar:ro
+    # k8s binary cache — download once, reuse across recreates.
+    - k8s-cache:/srv/salt/cache/k8s
+
+services:
+  master:
+    <<: *common
+    hostname: master-1
+    command: /lib/systemd/systemd
+    ports:
+      - "4505:4505"
+      - "4506:4506"
+    volumes:
+      # Formula sources.
+      - ./kubeadm:/srv/salt/kubeadm:ro
+      - ./orch:/srv/salt/orch:ro
+      - ./_runners:/srv/salt/_runners:ro
+      - ./_states:/srv/salt/_states:ro
+      - ./_modules:/srv/salt/_modules:ro
+      - ./test/salt/pillar:/srv/pillar:ro
+      - k8s-cache:/srv/salt/cache/k8s
+      # Master/minion config.
+      - ./test/docker/compose/master.conf:/etc/salt/master.d/compose.conf:ro
+      - ./test/docker/compose/minion.conf:/etc/salt/minion.d/compose.conf:ro
+      - ./test/docker/compose/haproxy.cfg:/etc/haproxy/haproxy.cfg:ro
+    networks:
+      salt:
+        aliases:
+          - salt
+          - master-1
+
+  minion:
+    <<: *common
+    hostname: worker-1
+    command: /lib/systemd/systemd
+    depends_on:
+      - master
+    volumes:
+      # Formula sources (needed for salt-call / local states).
+      - ./kubeadm:/srv/salt/kubeadm:ro
+      - ./_states:/srv/salt/_states:ro
+      - ./_modules:/srv/salt/_modules:ro
+      - ./test/salt/pillar:/srv/pillar:ro
+      - k8s-cache:/srv/salt/cache/k8s
+      # Minion config.
+      - ./test/docker/compose/minion-worker.conf:/etc/salt/minion.d/compose.conf:ro
+    networks:
+      salt:
+        aliases:
+          - worker-1
+
+networks:
+  salt:
+    driver: bridge
+
+volumes:
+  k8s-cache:

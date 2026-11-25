@@ -1,4 +1,3 @@
-{%- from 'kubeadm/map.jinja' import kubeadm with context %}
 {%- set minor = kubeadm.version.lstrip('v').split('.')[1] | int %}
 {%- set api_version = 'v1beta4' if minor >= 31 else 'v1beta3' %}
 {%- set taints = [] %}
@@ -10,7 +9,8 @@
 {%- set init_config = {
       'apiVersion': 'kubeadm.k8s.io/' ~ api_version,
       'kind': 'InitConfiguration',
-      'nodeRegistration': {'taints': taints}
+      'nodeRegistration': {'taints': taints},
+      'patches': {'directory': kubeadm.paths.patches_dir}
     } %}
 {%- if kubeadm.node.advertise_address %}
   {%- do init_config.update({
@@ -21,6 +21,39 @@
 {%- endif %}
 {{ init_config | yaml(False) }}
 ---
-{% include 'kubeadm/files/cluster.yaml.jinja' %}
+{%- set cluster_config = salt['kubeadm_util.merge_layers'](
+      {}, kubeadm.cluster, {}, {}
+    ) %}
+{%- do cluster_config.update({
+      'apiVersion': 'kubeadm.k8s.io/' ~ api_version,
+      'kind': 'ClusterConfiguration',
+      'kubernetesVersion': kubeadm.version
+    }) %}
+{%- for component in ['apiServer', 'controllerManager', 'scheduler'] %}
+  {%- set component_config = cluster_config.get(component, {}) %}
+  {%- do component_config.update({
+        'extraArgs': salt['kubeadm_util.extra_args'](
+          component_config.get('extraArgs', {}), api_version
+        )
+      }) %}
+  {%- do cluster_config.update({component: component_config}) %}
+{%- endfor %}
+{%- set etcd = cluster_config.get('etcd', {}) %}
+{%- set local_etcd = etcd.get('local', {}) %}
+{%- do local_etcd.update({
+      'extraArgs': salt['kubeadm_util.extra_args'](
+        local_etcd.get('extraArgs', {}), api_version
+      )
+    }) %}
+{%- do etcd.update({'local': local_etcd}) %}
+{%- do cluster_config.update({'etcd': etcd}) %}
+{{ cluster_config | yaml(False) }}
 ---
-{% include 'kubeadm/files/kubelet.yaml.jinja' %}
+{%- set kubelet_config = salt['kubeadm_util.merge_layers'](
+      {}, kubeadm.kubelet, {}, {}
+    ) %}
+{%- do kubelet_config.update({
+      'apiVersion': 'kubelet.config.k8s.io/v1beta1',
+      'kind': 'KubeletConfiguration'
+    }) %}
+{{ kubelet_config | yaml(False) }}

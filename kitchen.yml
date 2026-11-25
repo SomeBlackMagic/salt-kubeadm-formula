@@ -34,9 +34,10 @@ provisioner:
     - >-
       mkdir -p .kitchen/cache/k8s/v1.25.16/bin/linux/amd64 &&
       cd .kitchen/cache/k8s/v1.25.16/bin/linux/amd64 &&
+      k8s_base=https://dl.k8s.io/release/v1.25.16/bin/linux/amd64;
       for f in kubeadm kubelet kubectl; do
-        test -f "$f" || curl -fsSL -o "$f" "https://dl.k8s.io/release/v1.25.16/bin/linux/amd64/$f";
-        test -f "$f.sha256" || curl -fsSL -o "$f.sha256" "https://dl.k8s.io/release/v1.25.16/bin/linux/amd64/$f.sha256";
+        test -f "$f" || curl -fsSL -o "$f" "$k8s_base/$f";
+        test -f "$f.sha256" || curl -fsSL -o "$f.sha256" "$k8s_base/$f.sha256";
       done
     # Copy cached binaries into the sandbox so they are available as salt:// files.
     - >-
@@ -54,9 +55,10 @@ platforms:
       dockerfile: test/docker/bootstrap/Dockerfile
       build_context: true
       run_command: /lib/systemd/systemd
-      volumes:
+      volume:
         # Persist containerd image cache between kitchen runs.
-        - .kitchen/cache/containerd:/var/lib/containerd
+        - >-
+          <%= File.expand_path('.kitchen/cache/containerd', __dir__) %>:/var/lib/containerd
 
 
 verifier:
@@ -81,23 +83,28 @@ suites:
       inspec_tests:
         - path: test/integration/default
 
-#  - name: bootstrap
-#    provisioner:
-#      # Copy the repository as a file root so master-side orch/ and _runners/
-#      # are available in addition to the node formula.
-#      formula: null
-#      is_file_root: true
-#      salt_minion_extra_config:
-#        file_roots:
-#          base:
-#            - /tmp/kitchen/srv/salt
-#            - /tmp/kitchen/srv/salt/test/fixtures/formulas
-#      pillars_from_directories:
-#        - test/salt/pillar/bootstrap
-#      state_top:
-#        base:
-#          '*':
-#            - test.fixtures.states.bootstrap
-#    verifier:
-#      inspec_tests:
-#        - path: test/integration/bootstrap
+  - name: bootstrap
+    provisioner:
+      # Copy the repository as a file root so master-side orch/ and _runners/
+      # are available in addition to the node formula.
+      formula: null
+      is_file_root: true
+      dependencies:
+        - name: containerd
+          repo: git
+          source: https://github.com/SomeBlackMagic/salt-containerd-formula.git
+          branch: master
+      salt_minion_extra_config:
+        file_roots:
+          base:
+            - /tmp/kitchen/srv/salt
+            - /usr/share/salt-formulas/env/_formulas/containerd
+      pillars_from_directories:
+        - test/salt/pillar
+      state_top:
+        base:
+          '*':
+            - test.fixtures.states.bootstrap
+    verifier:
+      inspec_tests:
+        - path: test/integration/bootstrap

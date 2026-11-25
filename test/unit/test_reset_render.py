@@ -37,3 +37,10 @@ class TestKubeadmResetSLS:
             if state["fun"] == "module.run" and state["name"] == "iptables.flush"
         )
         assert iptables["require"] == [{"file": "kubeadm_cleanup"}]
+        assert iptables["onlyif"] == "command -v iptables"
+        ipvs = next(
+            state
+            for state in states
+            if state["fun"] == "module.run" and state["name"] == "ipvs.flush"
+        )
+        assert ipvs["require"] == [{"file": "kubeadm_cleanup"}]

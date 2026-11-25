@@ -198,6 +198,7 @@ def render_sls():
             "kubeadm_util.merge_layers": utility.merge_layers,
             "kubeadm_util.check_denylist": utility.check_denylist,
             "kubeadm_util.to_k8s": utility.to_k8s,
+            "kubeadm_util.extra_args": utility.extra_args,
             "kubeadm_util.stale_version_dirs": utility.stale_version_dirs,
             "file.directory_exists": lambda _path: False,
             "file.find": lambda _path, **_kwargs: [],
@@ -283,6 +284,8 @@ def render_orch():
         cluster_exists=False,
         init_node="master-1",
     ):
+        runner_calls = []
+
         def pillar_get(path, default=None):
             value = pillar
             for part in path.split(":"):
@@ -291,7 +294,8 @@ def render_orch():
                 value = value[part]
             return value
 
-        def saltutil_runner(function, **_kwargs):
+        def saltutil_runner(function, **kwargs):
+            runner_calls.append((function, kwargs))
             if function == "kubeadm.cluster_exists":
                 return cluster_exists
             if function == "kubeadm.pick_init_node":
@@ -331,6 +335,7 @@ def render_orch():
                         state.update(argument)
                 state.setdefault("name", state_id)
                 states.append(state)
+        render.runner_calls = runner_calls
         return states
 
     return render

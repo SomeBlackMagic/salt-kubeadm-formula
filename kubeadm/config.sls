@@ -46,6 +46,8 @@ kubeadm_init_config:
     - name: {{ kubeadm.paths.config_dir }}/init.yaml
     - source: salt://kubeadm/files/init.yaml.jinja
     - template: jinja
+    - context:
+        kubeadm: {{ kubeadm | tojson }}
     - mode: '0600'
     - require:
       - file: kubeadm_config_dir
@@ -55,6 +57,8 @@ kubeadm_cluster_config:
     - name: {{ kubeadm.paths.config_dir }}/cluster.yaml
     - source: salt://kubeadm/files/cluster.yaml.jinja
     - template: jinja
+    - context:
+        kubeadm: {{ kubeadm | tojson }}
     - mode: '0600'
     - require:
       - file: kubeadm_config_dir
@@ -64,6 +68,8 @@ kubeadm_kubelet_config:
     - name: {{ kubeadm.paths.config_dir }}/kubelet.yaml
     - source: salt://kubeadm/files/kubelet.yaml.jinja
     - template: jinja
+    - context:
+        kubeadm: {{ kubeadm | tojson }}
     - mode: '0600'
     - require:
       - file: kubeadm_config_dir
@@ -74,6 +80,8 @@ kubeadm_join_config:
     - name: {{ kubeadm.paths.config_dir }}/join.yaml
     - source: salt://kubeadm/files/join.yaml.jinja
     - template: jinja
+    - context:
+        kubeadm: {{ kubeadm | tojson }}
     - mode: '0600'
     - show_changes: False
     - require:

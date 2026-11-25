@@ -136,7 +136,7 @@ class TestKubeadmInitialized:
         )
 
         assert result["result"] is None
-        assert result["changes"] == {}
+        assert result["changes"]["planned"]["rendered_config"] == rendered
         assert "would" in result["comment"].lower()
         assert rendered.strip() in result["comment"]
         assert "dry-run output" in result["comment"]
@@ -167,7 +167,7 @@ class TestKubeadmInitialized:
         )
 
         assert result["result"] is None
-        assert result["changes"] == {}
+        assert result["changes"]["planned"]["rendered_config"] == rendered
         assert "kubeadm is not installed" in result["comment"].lower()
         assert rendered.strip() in result["comment"]
         state_mod.__salt__["cmd.which"].assert_called_once_with("kubeadm")
@@ -214,6 +214,30 @@ class TestKubeadmInitialized:
             python_shell=False,
             redirect_stderr=False,
         )
+
+    def test_init_passes_patches_directory(self, state_mod):
+        state_mod.__salt__["cmd.run_all"].return_value = {
+            "retcode": 0,
+            "stdout": "initialized",
+            "stderr": "",
+        }
+
+        state_mod.initialized(
+            name="init",
+            config="/etc/kubernetes/kubeadm/init.yaml",
+            patches="/etc/kubernetes/patches",
+        )
+
+        command = state_mod.__salt__["cmd.run_all"].call_args.args[0]
+        assert command == [
+            "kubeadm",
+            "init",
+            "--config",
+            "/etc/kubernetes/kubeadm/init.yaml",
+            "--upload-certs",
+            "--patches",
+            "/etc/kubernetes/patches",
+        ]
 
 
 class TestKubeadmHealthy:

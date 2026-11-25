@@ -40,6 +40,63 @@ class TestTransport:
             kwarg={"follow_symlinks": True},
         )
 
+    def test_cmd_forwards_nodegroup_target_type(self, runner_mod):
+        client = MagicMock()
+        runner_mod._client = MagicMock(return_value=client)
+
+        runner_mod._cmd(
+            "k8s-masters",
+            "test.ping",
+            transport="minion",
+            tgt_type="nodegroup",
+        )
+
+        client.cmd.assert_called_once_with(
+            "k8s-masters",
+            "test.ping",
+            arg=None,
+            kwarg=None,
+            tgt_type="nodegroup",
+        )
+
+    @pytest.mark.parametrize(
+        ("result", "expected"),
+        [
+            ({"master-1": True}, True),
+            ({"master-1": False, "master-2": True}, True),
+            ({"master-1": {"retcode": 0, "stdout": True}}, True),
+            ({"master-1": {"retcode": 1, "stdout": True}}, False),
+            ({"master-1": False}, False),
+            ({}, False),
+        ],
+    )
+    def test_truthy_result_normalizes_both_transports(
+        self, runner_mod, result, expected
+    ):
+        assert runner_mod._truthy_result(result) is expected
+
+
+class TestNodegroupMembers:
+    def test_returns_sorted_responding_members(self, runner_mod):
+        runner_mod._cmd = MagicMock(
+            return_value={
+                "master-2": True,
+                "master-3": False,
+                "master-1": True,
+            }
+        )
+
+        assert runner_mod._nodegroup_members("k8s-masters", "ssh") == [
+            "master-1",
+            "master-2",
+        ]
+        runner_mod._cmd.assert_called_once_with(
+            "k8s-masters",
+            "test.ping",
+            transport="ssh",
+            tgt_type="nodegroup",
+        )
+
 
 class TestClusterExists:
     def test_no_cluster_signal_returns_false(self, runner_mod):
@@ -87,6 +144,33 @@ class TestClusterExists:
             "/etc/kubernetes/admin.conf",
             "/etc/kubernetes/manifests/etcd.yaml",
         ]
+        assert all(
+            call.kwargs["tgt_type"] == "nodegroup"
+            for call in runner_mod._cmd.call_args_list
+        )
+        assert all(
+            call.kwargs["transport"] == "minion"
+            for call in runner_mod._cmd.call_args_list
+        )
+
+    def test_source_override_avoids_ssh_nodegroup_expansion(self, runner_mod):
+        runner_mod._http_check = MagicMock(return_value=False)
+        runner_mod._cmd = MagicMock(return_value={"master-1": False})
+
+        assert (
+            runner_mod.cluster_exists(
+                "k8s-masters",
+                "ssh",
+                endpoint="k8s-api.test:6443",
+                source_ip="master-1",
+            )
+            is False
+        )
+        assert all(
+            call.args[0] == "master-1"
+            and call.kwargs["tgt_type"] is None
+            for call in runner_mod._cmd.call_args_list
+        )
 
 
 class TestEndpointPrecheck:
@@ -134,6 +218,19 @@ class TestPickInitNode:
 
         with pytest.raises(RuntimeError, match="No nodes"):
             runner_mod.pick_init_node("k8s-masters")
+
+    def test_transport_is_used_to_resolve_nodegroup(self, runner_mod):
+        runner_mod._nodegroup_members = MagicMock(return_value=["master-1"])
+
+        assert (
+            runner_mod.pick_init_node(
+                "k8s-masters", source_ip=None, transport="ssh"
+            )
+            == "master-1"
+        )
+        runner_mod._nodegroup_members.assert_called_once_with(
+            "k8s-masters", "ssh"
+        )
 
 
 class TestPickSource:

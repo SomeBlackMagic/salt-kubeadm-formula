@@ -26,6 +26,7 @@ class TestInitClusterSLS:
         assert [state["fun"] for state in states] == ["kubeadm.initialized"]
         assert states[0]["config"].endswith("/init.yaml")
         assert states[0]["patches"] == "/etc/kubernetes/patches"
+        assert states[0]["patches_in_config"] is True
         assert states[0]["upload_certs"] is True
         assert states[0]["skip_phases"] == ["addon/kube-proxy"]
         assert "kind: InitConfiguration" in states[0]["rendered_config"]

@@ -46,6 +46,8 @@ def _rendered_config(config, rendered_config):
 def initialized(
     name,
     config,
+    patches=None,
+    patches_in_config=False,
     upload_certs=True,
     skip_phases=None,
     ignore_preflight_errors=None,
@@ -58,6 +60,8 @@ def initialized(
     command = ["kubeadm", "init", "--config", config]
     if upload_certs:
         command.append("--upload-certs")
+    if patches and not patches_in_config:
+        command.extend(["--patches", patches])
     _append_csv_flag(command, "--skip-phases", skip_phases)
     _append_csv_flag(
         command,
@@ -76,6 +80,12 @@ def initialized(
                 f"Command: {command_text}\n"
                 "Rendered config:\n"
                 f"{config_text}",
+                {
+                    "planned": {
+                        "command": command_text,
+                        "rendered_config": config_text,
+                    }
+                },
             )
 
         dry_run_command = [*command, "--dry-run"]
@@ -89,6 +99,13 @@ def initialized(
             f"Dry-run retcode: {dry_run.get('retcode', 1)}\n"
             f"Dry-run output:\n{output}\n"
             f"Rendered config:\n{config_text}",
+            {
+                "planned": {
+                    "command": " ".join(dry_run_command),
+                    "rendered_config": config_text,
+                    "dry_run_output": output,
+                }
+            },
         )
 
     result = _run(command)
@@ -102,6 +119,67 @@ def initialized(
         result.get("stdout") or "Kubernetes control plane initialized",
         {"initialized": "/etc/kubernetes/admin.conf"},
     )
+
+
+def preflight(
+    name,
+    config,
+    pull_images=True,
+    ignore_preflight_errors=None,
+):
+    """Run kubeadm preflight checks and optionally pre-pull images."""
+    preflight_command = [
+        "kubeadm",
+        "init",
+        "phase",
+        "preflight",
+        "--config",
+        config,
+    ]
+    _append_csv_flag(
+        preflight_command,
+        "--ignore-preflight-errors",
+        ignore_preflight_errors,
+    )
+    commands = [preflight_command]
+    if pull_images:
+        commands.append(
+            ["kubeadm", "config", "images", "pull", "--config", config]
+        )
+
+    command_text = [" ".join(command) for command in commands]
+    if __opts__.get("test"):
+        return _ret(
+            name,
+            None,
+            "Would run kubeadm preflight operations:\n"
+            + "\n".join(command_text),
+        )
+
+    completed = []
+    output = []
+    for command, rendered_command in zip(commands, command_text):
+        result = _run(command)
+        if result.get("retcode", 1) != 0:
+            error = (
+                result.get("stderr")
+                or result.get("stdout")
+                or "unknown error"
+            )
+            return _ret(
+                name,
+                False,
+                f"kubeadm preflight operation failed: {error}",
+                {"completed": completed} if completed else None,
+            )
+        completed.append(rendered_command)
+        if result.get("stdout"):
+            output.append(result["stdout"])
+
+    comment = "Kubeadm preflight operations completed"
+    if output:
+        comment += ":\n" + "\n".join(output)
+    return _ret(name, True, comment, {"completed": completed})
 
 
 def _http_ok(url):

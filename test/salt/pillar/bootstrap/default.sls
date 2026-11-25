@@ -11,10 +11,13 @@ containerd:
     plugins:
       io.containerd.cri.v1.images:
         snapshotter: native
+        use_local_image_pull: true
 
 kubeadm:
-  version: v1.31.4
+  version: v1.25.16
   arch: amd64
+  download:
+    base_url: salt://cache/k8s
   _ignore_preflight_errors:
     - SystemVerification
   cluster:
@@ -33,7 +36,8 @@ kubeadm:
   node:
     role: control-plane
     advertise_address: ''
-    flags: {}
+    flags:
+      node-ip: 0.0.0.0
     patches: {}
   addons:
     kube_proxy:

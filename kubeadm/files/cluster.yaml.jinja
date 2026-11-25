@@ -1,10 +1,10 @@
-{%- from 'kubeadm/map.jinja' import kubeadm with context %}
 {%- set minor = kubeadm.version.lstrip('v').split('.')[1] | int %}
 {%- set api_version = 'v1beta4' if minor >= 31 else 'v1beta3' %}
 {%- set config = salt['kubeadm_util.merge_layers']({}, kubeadm.cluster, {}, {}) %}
 {%- do config.update({
       'apiVersion': 'kubeadm.k8s.io/' ~ api_version,
-      'kind': 'ClusterConfiguration'
+      'kind': 'ClusterConfiguration',
+      'kubernetesVersion': kubeadm.version
     }) %}
 {%- set api_server = config.get('apiServer', {}) %}
 {%- do api_server.update({
